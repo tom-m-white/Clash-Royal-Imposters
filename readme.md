@@ -83,8 +83,8 @@ Simply open `index.html` in any modern web browser.
 3.  **Settings:** The host selects the number of Imposters (1-3).
 4.  **Reveal:** Memorize your card! If you are the Imposter, pay attention to the chat.
 5.  **Discuss:** When it is your turn, the bar turns blue. Type a hint about the card.
-    *   *Good Hint:* "It costs 7 elixir."
-    *   *Bad Hint:* "It's the P.E.K.K.A." (The Imposter will win immediately if they know exactly what it is).
+    *   *Good Hint:* "It's a very fast card"
+    *   *Bad Hint:* "It's the Hog rider" (The Imposter will win immediately if they know exactly what it is).
 6.  **Vote:** Decide who the faker is.
 
 ## 🛠️ Technologies Used
