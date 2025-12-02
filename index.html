@@ -1,0 +1,710 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Clash Imposters</title>
+    <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-database.js"></script>
+
+    <style>
+        :root {
+            --bg-color: #1a1c29;
+            --card-bg: #2b2e42;
+            --accent: #3b82f6;
+            --text-main: #ffffff;
+            --text-muted: #94a3b8;
+            --imposter: #ef4444;
+            --common: #60a5fa;
+            --rare: #f97316;
+            --epic: #c084fc;
+            --success: #10b981;
+            --timer-bg: #3d4157;
+        }
+
+        * { box-sizing: border-box; margin: 0; padding: 0; font-family: 'Segoe UI', sans-serif; }
+        
+        body {
+            background-color: var(--bg-color);
+            color: var(--text-main);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            padding: 15px;
+        }
+
+        .container {
+            background-color: var(--card-bg);
+            border-radius: 20px;
+            width: 100%;
+            max-width: 450px;
+            height: 90vh;
+            display: flex;
+            flex-direction: column;
+            padding: 20px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.5);
+            position: relative;
+            overflow: hidden;
+        }
+
+        /* Generic UI */
+        h1, h2 { text-align: center; margin-bottom: 15px; text-transform: uppercase; }
+        p { color: var(--text-muted); text-align: center; margin-bottom: 15px; }
+        
+        .scroll-area {
+            flex-grow: 1;
+            overflow-y: auto;
+            margin-bottom: 10px;
+            padding-right: 5px;
+        }
+
+        input {
+            width: 100%;
+            padding: 12px;
+            margin: 8px 0;
+            border-radius: 8px;
+            border: 2px solid #3d4157;
+            background: #151722;
+            color: white;
+            font-size: 1rem;
+            text-align: center;
+        }
+        input:disabled { opacity: 0.5; cursor: not-allowed; }
+
+        .btn {
+            background: var(--accent);
+            color: white;
+            border: none;
+            padding: 14px;
+            width: 100%;
+            border-radius: 10px;
+            font-size: 1.1rem;
+            font-weight: bold;
+            margin-top: 10px;
+            cursor: pointer;
+            flex-shrink: 0;
+        }
+        .btn-secondary { background: #3d4157; }
+        .btn-red { background: var(--imposter); }
+        .btn-green { background: var(--success); }
+
+        /* Button Group for 50/50 split */
+        .btn-group { display: flex; gap: 10px; width: 100%; margin-top: 10px; }
+        .btn-group .btn { flex: 1; margin-top: 0; }
+
+        .screen { display: none; height: 100%; flex-direction: column; }
+        .screen.active { display: flex; animation: fade 0.3s; }
+
+        /* Timer Bar */
+        .timer-container {
+            width: 100%;
+            height: 8px;
+            background: var(--timer-bg);
+            border-radius: 4px;
+            margin-bottom: 10px;
+            overflow: hidden;
+        }
+        .timer-fill {
+            height: 100%;
+            background: var(--accent);
+            width: 100%;
+            /* Smooth transition for the visual updates */
+            transition: width 0.1s linear; 
+        }
+        .turn-info {
+            background: #151722;
+            padding: 10px;
+            border-radius: 8px;
+            margin-bottom: 10px;
+            text-align: center;
+            border: 1px solid #3d4157;
+        }
+
+        /* Chat Styles */
+        .chat-container {
+            flex-grow: 1;
+            background: #151722;
+            border-radius: 10px;
+            margin: 10px 0;
+            padding: 10px;
+            overflow-y: auto;
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+            border: 1px solid #3d4157;
+        }
+        .msg { font-size: 0.9rem; padding: 8px 12px; border-radius: 8px; background: #2b2e42; align-self: flex-start; max-width: 90%; }
+        .msg.mine { background: var(--accent); color: white; align-self: flex-end; }
+        .msg b { color: #fbbf24; margin-right: 5px; display:block; font-size: 0.75rem; opacity: 0.8;}
+        
+        /* Voting */
+        .player-item { padding: 12px; border-bottom: 1px solid #3d4157; display: flex; justify-content: space-between; align-items: center; background: #151722; margin-bottom: 5px; border-radius: 8px; }
+        .vote-btn { background: #3d4157; border: 1px solid white; color: white; padding: 5px 15px; border-radius: 20px; cursor: pointer; font-size: 0.8rem; }
+        .vote-btn:hover { background: var(--imposter); border-color: var(--imposter); }
+        
+        /* Card Reveal */
+        .role-card { background: #151722; border-radius: 15px; padding: 30px 10px; margin: 20px 0; border: 2px solid #3d4157; text-align: center; }
+        .card-name { font-size: 1.8rem; font-weight: 800; }
+        .text-imposter { color: var(--imposter); letter-spacing: 2px; }
+        .text-common { color: var(--common); }
+        .text-rare { color: var(--rare); }
+        .text-epic { color: var(--epic); }
+        .text-legendary { background: linear-gradient(to right, #facc15, #f59e0b); -webkit-background-clip: text; color: transparent; }
+
+        @keyframes fade { from { opacity: 0; } to { opacity: 1; } }
+    </style>
+</head>
+<body>
+
+    <div class="container">
+        
+        <!-- SCREEN 1: LOGIN -->
+        <div id="screen-login" class="screen active" style="justify-content: center;">
+            <h1>Clash Imposter</h1>
+            <input type="text" id="username" placeholder="Your Name" maxlength="10">
+            <div class="btn-group">
+                <button class="btn" onclick="createRoom()">Create</button>
+                <button class="btn btn-secondary" onclick="document.getElementById('join-area').style.display='block'">Join</button>
+            </div>
+            <div id="join-area" style="display:none; width:100%; margin-top: 15px;">
+                <input type="text" id="room-code-input" placeholder="Room Code" style="text-transform:uppercase;">
+                <button class="btn" onclick="joinRoom()">Enter Room</button>
+            </div>
+        </div>
+
+        <!-- SCREEN 2: LOBBY -->
+        <div id="screen-lobby" class="screen">
+            <p>Room Code</p>
+            <h1 id="display-room-code" style="color: var(--accent); letter-spacing: 5px;">----</h1>
+            <div class="scroll-area" id="lobby-player-list"></div>
+            
+            <div id="host-controls" style="display:none; margin-top: auto;">
+                <p>Imposters: <span id="imposter-count-display">1</span></p>
+                <input type="range" id="imposter-slider" min="1" max="3" value="1" oninput="updateSettings()">
+                <button class="btn" onclick="startGame()">Start Game</button>
+            </div>
+            <div id="player-waiting-msg" style="margin-top: auto;">
+                <p>Waiting for host...</p>
+            </div>
+        </div>
+
+        <!-- SCREEN 3: REVEAL -->
+        <div id="screen-reveal" class="screen" style="justify-content: center;">
+            <h2 id="player-role-header"></h2>
+            <div class="role-card">
+                <div id="game-card-name" class="card-name">...</div>
+                <div id="game-card-rarity" style="opacity:0.8; font-size:0.9rem; margin-top:5px;"></div>
+            </div>
+            <p id="game-instruction"></p>
+            <button class="btn btn-secondary" id="btn-to-discuss" style="display:none;" onclick="startInterrogation()">Start Interrogation</button>
+            <p id="wait-discuss-msg" style="font-size:0.8rem;">Waiting for host...</p>
+        </div>
+
+        <!-- SCREEN 4: INTERROGATION (CHAT) -->
+        <div id="screen-discussion" class="screen">
+            <h2>Interrogation</h2>
+            
+            <div class="turn-info">
+                <div class="timer-container"><div id="timer-bar" class="timer-fill" style="width: 100%;"></div></div>
+                <span id="turn-status-text" style="font-weight:bold; font-size: 1.1rem;">Waiting...</span>
+            </div>
+
+            <div class="chat-container" id="chat-box"></div>
+            
+            <div class="chat-input-area">
+                <input type="text" id="chat-input" placeholder="Wait for your turn..." disabled onkeypress="handleChatEnter(event)">
+                <button class="btn" id="chat-btn" style="width: auto; margin: 8px 0;" disabled onclick="sendChat()">Send</button>
+            </div>
+        </div>
+
+        <!-- SCREEN 5: VOTING -->
+        <div id="screen-voting" class="screen">
+            <h2>Time to Vote</h2>
+            <p>Vote to eject or play another round.</p>
+            <div class="scroll-area">
+                <div id="voting-list"></div>
+            </div>
+            <button class="btn btn-green" onclick="vote('skip')" style="margin-bottom: 20px;">Vote: Another Round</button>
+            
+            <p id="vote-status-msg">Waiting for results...</p>
+            <button class="btn btn-red" id="btn-tally" style="display:none;" onclick="tallyVotes()">Tally Votes</button>
+        </div>
+
+        <!-- SCREEN 6: RESULTS -->
+        <div id="screen-results" class="screen" style="justify-content: center;">
+            <h1 id="result-title">...</h1>
+            <h2 id="result-subtitle" style="color: var(--text-muted);"></h2>
+            <div class="role-card" id="result-card-display">
+                <p>The Card Was:</p>
+                <div id="result-real-card" class="card-name"></div>
+            </div>
+            <button class="btn" id="btn-restart" style="display:none;" onclick="resetToLobby()">Back to Lobby</button>
+            <p id="wait-restart">Waiting for host...</p>
+        </div>
+
+    </div>
+
+    <script>
+        // ==========================================
+        // CONFIGURATION - PASTE KEYS HERE
+        // ==========================================
+        const firebaseConfig = {
+            apiKey: "API_KEY", 
+            authDomain: "AUTH_DOMAIN",
+            databaseURL: "DATABASE_URL",
+            projectId: "PROJECT_ID",
+            storageBucket: "STORAGE_BUCKET",
+            messagingSenderId: "ID",
+            appId: "APP_ID",
+            measurementId: "MEASUREMENT_ID"
+            };
+        // ==========================================
+
+        if (!firebase.apps.length) firebase.initializeApp(firebaseConfig);
+        const db = firebase.database();
+
+        let myName = "", myRoom = "", isHost = false, myId = "";
+        let turnTimerInterval = null;
+        let localTurnStartTime = 0; 
+        
+        const allCards = [
+            {n:"Knight", r:"common"},
+            {n:"Archers", r:"common"},
+            {n:"Goblins", r:"common"},
+            {n:"Minions", r:"common"},
+            {n:"Minion Horde", r:"common"},
+            {n:"Skeletons", r:"common"},
+            {n:"Bats", r:"common"},
+            {n:"Bomber", r:"common"},
+            {n:"Spear Goblins", r:"common"},
+            {n:"Goblins Gang", r:"common"},
+            {n:"Royal Giant", r:"common"},
+            {n:"Elite Barbarians", r:"common"},
+            {n:"Skeleton Dragons", r:"common"},
+            {n:"Ice Spirit", r:"common"},
+            {n:"Fire Spirit", r:"common"},
+            {n:"Tesla", r:"common"},
+            {n:"Cannon", r:"common"},
+            {n:"Mortar", r:"common"},
+            {n:"Arrows", r:"common"},
+            {n:"Zap", r:"common"},
+            {n:"Royal Delivery", r:"common"},
+            {n:"Giant Snowball", r:"common"},
+            {n:"Royal Recruits", r:"common"},
+            {n:"Giant", r:"rare"},
+            {n:"Valkyrie", r:"rare"},
+            {n:"Musketeer", r:"rare"},
+            {n:"Mini P.E.K.K.A", r:"rare"},
+            {n:"Hog Rider", r:"rare"},
+            {n:"Wizard", r:"rare"},
+            {n:"Ice Golem", r:"rare"},
+            {n:"Mega Minion", r:"rare"},
+            {n:"Dart Goblin", r:"rare"},
+            {n:"Three Musketeers", r:"rare"},
+            {n:"Battle Ram", r:"rare"},
+            {n:"Zappies", r:"rare"},
+            {n:"Flying Machine", r:"rare"},
+            {n:"Royal Hogs", r:"rare"},
+            {n:"Elixir Golem", r:"rare"},
+            {n:"Battle Healer", r:"rare"},
+            {n:"Goblin Hut", r:"rare"},
+            {n:"Bomb Tower", r:"rare"},
+            {n:"Inferno Tower", r:"rare"},
+            {n:"Barbarian Hut", r:"rare"},
+            {n:"Tombstone", r:"rare"},
+            {n:"Furnace", r:"rare"},
+            {n:"Goblin Cage", r:"rare"},
+            {n:"Goblin Demolisher", r:"rare"},
+            {n:"Suspicious Bush", r:"rare"},
+            {n:"Earthquake", r:"rare"},
+            {n:"Rocket", r:"rare"},
+            {n:"Heal Spirit", r:"rare"},
+            {n:"P.E.K.K.A", r:"epic"},
+            {n:"Witch", r:"epic"},
+            {n:"Baby Dragon", r:"epic"},
+            {n:"Prince", r:"epic"},
+            {n:"Golem", r:"epic"},
+            {n:"Skeleton Army", r:"epic"},
+            {n:"Balloon", r:"epic"},
+            {n:"Giant Skeleton", r:"epic"},
+            {n:"Guards", r:"epic"},
+            {n:"Dark Prince", r:"epic"},
+            {n:"Bowler", r:"epic"},
+            {n:"Hunter", r:"epic"},
+            {n:"Executioner", r:"epic"},
+            {n:"Cannon Cart", r:"epic"},
+            {n:"Goblin Giant", r:"epic"},
+            {n:"Electro Dragon", r:"epic"},
+            {n:"Electro Giant", r:"epic"},
+            {n:"X-Bow", r:"epic"},
+            {n:"Goblin Drill", r:"epic"},
+            {n:"Goblin Barrel", r:"epic"},
+            {n:"Freeze", r:"epic"},
+            {n:"Rage", r:"epic"},
+            {n:"Mirror", r:"epic"},
+            {n:"Lightning", r:"epic"},
+            {n:"Tornado", r:"epic"},
+            {n:"Clone", r:"epic"},
+            {n:"Goblin Curse", r:"epic"},
+            {n:"Vines", r:"epic"},
+            {n:"Void", r:"epic"},
+            {n:"Ice Wizard", r:"legendary"},
+            {n:"Princess", r:"legendary"},
+            {n:"Lava Hound", r:"legendary"},
+            {n:"Miner", r:"legendary"},
+            {n:"Sparky", r:"legendary"},
+            {n:"Lumberjack", r:"legendary"},
+            {n:"Inferno Dragon", r:"legendary"},
+            {n:"Electro Wizard", r:"legendary"},
+            {n:"Bandit", r:"legendary"},
+            {n:"Night Witch", r:"legendary"},
+            {n:"Royal Ghost", r:"legendary"},
+            {n:"Ram Rider", r:"legendary"},
+            {n:"Magic Archer", r:"legendary"},
+            {n:"Fisherman", r:"legendary"},
+            {n:"Mother Witch", r:"legendary"},
+            {n:"Phoenix", r:"legendary"},
+            {n:"Graveyard", r:"legendary"},
+            {n:"The Log", r:"legendary"},
+            {n:"Spirit Empress", r:"legendary"},
+            {n:"Mighty Miner", r:"champion"},
+            {n:"Skeleton King", r:"champion"},
+            {n:"Archer Queen", r:"champion"},
+            {n:"Golden Knight", r:"champion"},
+            {n:"Monk", r:"champion"},
+            {n:"Little Prince", r:"champion"},
+            {n:"Goblinstein", r:"champion"},
+            {n:"Boss Bandit", r:"champion"}
+            ];
+
+
+        // --- NAVIGATION ---
+        function showScreen(id) {
+            document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
+            document.getElementById(id).classList.add('active');
+        }
+
+        // --- LOBBY LOGIC ---
+        function generateRoomCode() { return Math.random().toString(36).substring(2, 6).toUpperCase(); }
+
+        function createRoom() {
+            myName = document.getElementById('username').value.trim();
+            if(!myName) return alert("Name required");
+            myRoom = generateRoomCode();
+            myId = Date.now().toString();
+            isHost = true;
+            db.ref('rooms/' + myRoom).set({
+                status: 'lobby', imposters: 1, players: { [myId]: { name: myName, isHost: true } }
+            });
+            enterLobby();
+        }
+
+        function joinRoom() {
+            myName = document.getElementById('username').value.trim();
+            myRoom = document.getElementById('room-code-input').value.trim().toUpperCase();
+            if(!myName || !myRoom) return;
+            myId = Date.now().toString();
+            db.ref('rooms/' + myRoom).once('value', snap => {
+                if (snap.exists()) {
+                    db.ref(`rooms/${myRoom}/players/${myId}`).set({ name: myName, isHost: false });
+                    enterLobby();
+                } else alert("Room not found");
+            });
+        }
+
+        function enterLobby() {
+            showScreen('screen-lobby');
+            document.getElementById('display-room-code').innerText = myRoom;
+
+            db.ref('rooms/' + myRoom).on('value', snap => {
+                const data = snap.val();
+                if(!data) return location.reload();
+
+                // Lobby List
+                const list = document.getElementById('lobby-player-list');
+                list.innerHTML = '';
+                Object.values(data.players).forEach(p => {
+                    list.innerHTML += `<div class="player-item"><span>${p.name}</span>${p.isHost?' <b>(HOST)</b>':''}</div>`;
+                });
+
+                if(isHost) {
+                    document.getElementById('host-controls').style.display = 'block';
+                    document.getElementById('player-waiting-msg').style.display = 'none';
+                    document.getElementById('imposter-slider').max = Math.max(1, Object.keys(data.players).length - 1);
+                }
+
+                // Game State Router
+                if(data.status === 'reveal') setupReveal(data);
+                else if(data.status === 'discuss') setupDiscussion(data);
+                else if(data.status === 'voting') setupVoting(data);
+                else if(data.status === 'results') showResults(data);
+                else if(data.status === 'lobby') showScreen('screen-lobby');
+            });
+        }
+
+        function updateSettings() {
+            if(isHost) db.ref(`rooms/${myRoom}/imposters`).set(parseInt(document.getElementById('imposter-slider').value));
+        }
+
+        // --- PHASE 1: START & REVEAL ---
+        function startGame() {
+            db.ref('rooms/' + myRoom).once('value', snap => {
+                const data = snap.val();
+                const pIds = Object.keys(data.players);
+                if(pIds.length < 3) return alert("Need 3+ players");
+
+                const card = allCards[Math.floor(Math.random() * allCards.length)];
+                
+                let imps = [];
+                while(imps.length < data.imposters) {
+                    let r = pIds[Math.floor(Math.random() * pIds.length)];
+                    if(!imps.includes(r)) imps.push(r);
+                }
+
+                // Shuffle Turn Order (Only on Start Game)
+                let order = [...pIds];
+                for (let i = order.length - 1; i > 0; i--) {
+                    const j = Math.floor(Math.random() * (i + 1));
+                    [order[i], order[j]] = [order[j], order[i]];
+                }
+
+                db.ref('rooms/' + myRoom).update({
+                    status: 'reveal', 
+                    currentCard: card, 
+                    imposterIds: imps, 
+                    turnOrder: order, 
+                    chat: null, 
+                    votes: null, 
+                    ejected: null
+                });
+            });
+        }
+
+        function setupReveal(data) {
+            showScreen('screen-reveal');
+            
+            // CLEAR CHAT HISTORY
+            document.getElementById('chat-box').innerHTML = '';
+            
+            const isImp = data.imposterIds.includes(myId);
+            const nameEl = document.getElementById('game-card-name');
+            const rareEl = document.getElementById('game-card-rarity');
+            nameEl.className = 'card-name';
+
+            if(isImp) {
+                document.getElementById('player-role-header').innerText = "YOU ARE THE";
+                nameEl.innerText = "IMPOSTER";
+                nameEl.classList.add('text-imposter');
+                rareEl.innerText = "";
+                document.getElementById('game-instruction').innerText = "Fake it! Everyone else sees a card.";
+            } else {
+                document.getElementById('player-role-header').innerText = "THE CARD IS";
+                nameEl.innerText = data.currentCard.n;
+                nameEl.classList.add('text-' + data.currentCard.r);
+                rareEl.innerText = data.currentCard.r.toUpperCase();
+                document.getElementById('game-instruction').innerText = "Memorize this. Find the faker.";
+            }
+
+            if(isHost) {
+                document.getElementById('btn-to-discuss').style.display = 'block';
+                document.getElementById('wait-discuss-msg').style.display = 'none';
+            }
+        }
+
+        // --- PHASE 2: INTERROGATION ---
+        function startInterrogation() {
+            if(!isHost) return;
+            db.ref('rooms/' + myRoom).update({
+                status: 'discuss',
+                turnIndex: 0,
+                turnId: Date.now() 
+            });
+        }
+
+        let lastSeenTurnIndex = -1;
+
+        function setupDiscussion(data) {
+            showScreen('screen-discussion');
+            
+            if(data.turnIndex !== lastSeenTurnIndex) {
+                lastSeenTurnIndex = data.turnIndex;
+                localTurnStartTime = Date.now();
+                const bar = document.getElementById('timer-bar');
+                bar.style.transition = 'none';
+                bar.style.width = '100%';
+                setTimeout(() => { bar.style.transition = 'width 0.1s linear'; }, 50);
+            }
+
+            const currentPlayerId = data.turnOrder[data.turnIndex];
+            const currentPlayerName = data.players[currentPlayerId].name;
+            const isMyTurn = (currentPlayerId === myId);
+
+            const statusText = document.getElementById('turn-status-text');
+            const input = document.getElementById('chat-input');
+            const btn = document.getElementById('chat-btn');
+
+            if(isMyTurn) {
+                statusText.innerText = "IT'S YOUR TURN! Explain yourself.";
+                statusText.style.color = "var(--success)";
+                input.disabled = false;
+                btn.disabled = false;
+                input.placeholder = "Type your reasoning...";
+                input.focus();
+            } else {
+                statusText.innerText = `${currentPlayerName} is typing...`;
+                statusText.style.color = "var(--text-muted)";
+                input.disabled = true;
+                btn.disabled = true;
+                input.placeholder = "Wait for your turn...";
+            }
+
+            // Chat Listener
+            if(!document.getElementById('chat-box').getAttribute('data-listening')) {
+                document.getElementById('chat-box').setAttribute('data-listening', 'true');
+                db.ref(`rooms/${myRoom}/chat`).on('child_added', snap => {
+                    const msg = snap.val();
+                    const div = document.createElement('div');
+                    div.className = 'msg ' + (msg.name === myName ? 'mine' : '');
+                    div.innerHTML = `<b>${msg.name}</b> ${msg.text}`;
+                    const box = document.getElementById('chat-box');
+                    box.appendChild(div);
+                    box.scrollTop = box.scrollHeight;
+                });
+            }
+
+            if(turnTimerInterval) clearInterval(turnTimerInterval);
+            
+            turnTimerInterval = setInterval(() => {
+                const elapsed = Date.now() - localTurnStartTime;
+                const timeLeft = 30000 - elapsed;
+                const pct = Math.max(0, (timeLeft / 30000) * 100);
+                
+                document.getElementById('timer-bar').style.width = pct + "%";
+
+                // HOST ONLY: Enforce time limit
+                if(isHost && timeLeft <= 0) {
+                    clearInterval(turnTimerInterval);
+                    nextTurn(data);
+                }
+            }, 100);
+        }
+
+        function nextTurn(data) {
+            const nextIdx = data.turnIndex + 1;
+            
+            if(nextIdx >= data.turnOrder.length) {
+                setTimeout(() => {
+                    db.ref('rooms/' + myRoom).update({ status: 'voting' });
+                }, 4000);
+            } else {
+                db.ref('rooms/' + myRoom).update({
+                    turnIndex: nextIdx,
+                    turnId: Date.now()
+                });
+            }
+        }
+
+        function sendChat() {
+            const input = document.getElementById('chat-input');
+            const btn = document.getElementById('chat-btn');
+            const txt = input.value.trim();
+            
+            if(txt) {
+                input.disabled = true;
+                btn.disabled = true;
+                
+                db.ref(`rooms/${myRoom}/chat`).push({ name: myName, text: txt });
+                input.value = '';
+                
+                db.ref('rooms/' + myRoom).once('value', snap => nextTurn(snap.val()));
+            }
+        }
+
+        function handleChatEnter(e) { if(e.key === 'Enter') sendChat(); }
+
+
+        // --- PHASE 3: VOTING ---
+        function setupVoting(data) {
+            showScreen('screen-voting');
+            if(turnTimerInterval) clearInterval(turnTimerInterval);
+
+            const vList = document.getElementById('voting-list');
+            vList.innerHTML = '';
+            
+            Object.entries(data.players).forEach(([pid, p]) => {
+                const btn = `<button class="vote-btn" onclick="vote('${pid}')">Vote</button>`;
+                vList.innerHTML += `<div class="player-item"><span>${p.name}</span>${btn}</div>`;
+            });
+
+            if(isHost) document.getElementById('btn-tally').style.display = 'block';
+        }
+
+        function vote(target) {
+            db.ref(`rooms/${myRoom}/votes/${myId}`).set(target);
+            document.querySelectorAll('.vote-btn').forEach(b => {
+                b.disabled = true; 
+                b.style.opacity = '0.5';
+            });
+            document.getElementById('vote-status-msg').innerText = "Vote Cast. Waiting for others...";
+        }
+
+        function tallyVotes() {
+            if(!isHost) return;
+            db.ref('rooms/' + myRoom).once('value', snap => {
+                const data = snap.val();
+                const votes = data.votes || {};
+                let counts = {};
+                Object.values(votes).forEach(v => counts[v] = (counts[v] || 0) + 1);
+
+                let max = 0; 
+                let winner = "skip"; 
+                for(let id in counts) {
+                    if(counts[id] > max) { max = counts[id]; winner = id; }
+                    else if(counts[id] === max) winner = "skip";
+                }
+
+                if(winner === "skip") {
+                    startInterrogation(); 
+                } else {
+                    db.ref('rooms/' + myRoom).update({ status: 'results', ejected: winner });
+                }
+            });
+        }
+
+        // --- PHASE 4: RESULTS ---
+        function showResults(data) {
+            showScreen('screen-results');
+            const title = document.getElementById('result-title');
+            const sub = document.getElementById('result-subtitle');
+            
+            const realCard = document.getElementById('result-real-card');
+            realCard.innerText = data.currentCard.n;
+            realCard.className = 'card-name text-' + data.currentCard.r;
+
+            const pName = data.players[data.ejected].name;
+            const wasImposter = data.imposterIds.includes(data.ejected);
+            
+            title.innerText = pName + " was ejected.";
+            if(wasImposter) {
+                title.style.color = "var(--success)";
+                sub.innerText = "They were an IMPOSTER!";
+                sub.style.color = "var(--success)";
+            } else {
+                title.style.color = "var(--imposter)";
+                sub.innerText = "They were NOT an Imposter.";
+                sub.style.color = "var(--imposter)";
+            }
+
+            if(isHost) {
+                document.getElementById('btn-restart').style.display = 'block';
+                document.getElementById('wait-restart').style.display = 'none';
+            }
+        }
+
+        function resetToLobby() {
+            if(isHost) db.ref('rooms/' + myRoom).update({ status: 'lobby' });
+        }
+    </script>
+</body>
+</html>
